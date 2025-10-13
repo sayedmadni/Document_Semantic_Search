@@ -1,14 +1,11 @@
 #Trying to use GPU
 import torch
-if torch.cuda.is_available():
-    # Use the first available CUDA device
-    device = torch.device("cuda")
-    print("CUDA is available. Using GPU.")
-    print("GPU Name:", torch.cuda.get_device_name(0))
-else:
-    # Use CPU if CUDA is not available
-    device = torch.device("cpu")
-    print("CUDA not available. Using CPU.")
+import sys
+from pathlib import Path
+
+# Add the src directory to the Python path for imports
+sys.path.insert(0, str(Path(__file__).parent))
+
 # -----------------------------------------------------------Getting the model ready---------------------------------------------------------
 # using docling to convert the document to markdown format
 from docling.document_converter import DocumentConverter
@@ -19,20 +16,28 @@ result = converter.convert(source)
 markdown_text = result.document.export_to_markdown()
 #print(markdown_text)
 
-# Using chonkie to chunk the markdown text
-from chonkie import RecursiveChunker
-chunker = RecursiveChunker()
+# Using chonkie to semantic chunk the markdown text
+from chonkie import SemanticChunker
+chunker = SemanticChunker(
+    embedding_model="all-MiniLM-L6-v2",
+    threshold=0.8,
+    chunk_size=2048,
+    similarity_window=3,
+    min_sentences_per_chunk=2,
+    min_characters_per_sentence=24
+)
 chunks = chunker(markdown_text)
 
-for chunk in chunks:
-    print(f"Chunk: {chunk.text}\n")
+#for chunk in chunks:
+ #   print(f"Chunk: {chunk.text}\n")
 
-#-----------------------------Next we ge tthe sentence tranformer model ready---------------------------------------------------------
+#-----------------------------Next we get the sentence transformer model ready with GPU acceleration---------------------------------------------------------
 from sentence_transformers import SentenceTransformer
 
-MODEL = 'msmarco-distilbert-base-v4'
+MODEL = 'multi-qa-mpnet-base-cos-v1'
 embedder = SentenceTransformer(MODEL)
-embeddings = embedder.encode(chunks, convert_to_tensor=True) 
+embeddings = embedder.encode(chunks, convert_to_tensor=True)
+
 # Here the sentences is a list of array of all the documents in the corpus. For us it will be title of each document. 
 # This is where we need to use docking and chonkie
 
@@ -58,6 +63,7 @@ for index, result in enumerate(search_results[0]):
     print(chunks[result['corpus_id']])
 
 # Pasting the code here for query cleaning to be used later when stremlit is integrated. 
+# TRY TO FIND A LIBRARY THAT DOES THIS FOR US. 
  # Add query guidelines
     # st = 'streamlit'
     # with st.expander("📝 Query Guidelines", expanded=False):
@@ -95,7 +101,7 @@ for index, result in enumerate(search_results[0]):
     #             return None, "Query must be at least 2 characters long."
             
     #         # Check maximum length (prevent extremely long queries)
-    #         if len(query) > 500:
+    #         if len(query) > 100:
     #             return None, "Query is too long. Please keep it under 500 characters."
             
     #         # Basic content filtering - only block obvious inappropriate content
