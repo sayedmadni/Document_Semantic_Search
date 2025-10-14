@@ -7,14 +7,22 @@ import streamlit as st
 # Add the src directory to the Python path for imports
 sys.path.insert(0, str(Path(__file__).parent))
 
-def load_model_and_data():
+# This is where Anurag will create the Payload into qdrantdb item 8 and 9 on google doc
+# https://qdrant.tech/documentation/quickstart/
+def db_load():
     from docling.document_converter import DocumentConverter
     source = "https://arxiv.org/pdf/2408.09869"  # document path, it can also be a array of document names
     converter = DocumentConverter()
     result = converter.convert(source) 
     markdown_text = result.document.export_to_markdown()
-    print(markdown_text)
+    #print(markdown_text)
+    return markdown_text
 
+# This is where Anurag will retrieve the data from qdrantdb with the vectorized input query
+def db_retrieve():
+    return "Hello"
+
+def load_model_and_data():
     # Using chonkie to semantic chunk the markdown text
     from chonkie import SemanticChunker
     chunker = SemanticChunker(
@@ -25,7 +33,7 @@ def load_model_and_data():
         min_sentences_per_chunk=2,
         min_characters_per_sentence=24
     )
-    chunks = chunker(markdown_text)
+    chunks = chunker(db_load())
 
     #for chunk in chunks:
     #   print(f"Chunk: {chunk.text}\n")
@@ -36,7 +44,7 @@ def load_model_and_data():
     MODEL = 'multi-qa-mpnet-base-cos-v1'
     embedder = SentenceTransformer(MODEL)
     embeddings = embedder.encode(chunks, convert_to_tensor=True)
-    print(embeddings.shape) 
+    #print(embeddings.shape) 
     return embeddings,embedder,chunks
 
 def run_search_app():
@@ -61,8 +69,7 @@ def run_search_app():
         </div>
     </div>
     """, unsafe_allow_html=True)
-    
-    
+        
     # Search section with enhanced styling
     st.markdown("## 🔍 AI-Powered Search")
     st.markdown("**Describe what you're looking for and let AI find the perfect patent match!**")
@@ -78,15 +85,15 @@ def run_search_app():
         q = st.text_input(
             "🎯 Search Query", 
             value=st.session_state.search_query,
-            placeholder="e.g., 'chunking is fun'",
+            placeholder="e.g., 'How can I chunk documents'",
             help="Describe the patent info you're looking for in natural language",
             key="search_input"
         ) 
 
-# Perform search when user enters a query
+    # Perform search when user enters a query
     if q:
         # Input validation and safety checks
-        def validate_query(query):
+        def validate_query(query): # This is where Sangeetha will do the Ensamble Prompting / Query Guardrails item 11 on google doc
             pass
         
         with st.spinner("Searching..."):
