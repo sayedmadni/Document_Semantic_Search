@@ -1,150 +1,188 @@
 #Trying to use GPU
 import torch
-if torch.cuda.is_available():
-    # Use the first available CUDA device
-    device = torch.device("cuda")
-    print("CUDA is available. Using GPU.")
-    print("GPU Name:", torch.cuda.get_device_name(0))
-else:
-    # Use CPU if CUDA is not available
-    device = torch.device("cpu")
-    print("CUDA not available. Using CPU.")
-# -----------------------------------------------------------Getting the model ready---------------------------------------------------------
-# using docling to convert the document to markdown format
-from docling.document_converter import DocumentConverter
-# At this step we need to go to Anurag directory and take all the documents and loop through them and convert them to markdown format using docling
-source = "https://arxiv.org/pdf/2408.09869"  # document path, it can also be a array of document names
-converter = DocumentConverter()
-result = converter.convert(source) 
-markdown_text = result.document.export_to_markdown()
-#print(markdown_text)
+import sys
+from pathlib import Path
+import streamlit as st
 
-# Using chonkie to chunk the markdown text
-from chonkie import RecursiveChunker
-chunker = RecursiveChunker()
-chunks = chunker(markdown_text)
+# Add the src directory to the Python path for imports
+sys.path.insert(0, str(Path(__file__).parent))
 
-for chunk in chunks:
-    print(f"Chunk: {chunk.text}\n")
+# This is where Anurag will create the Payload into qdrantdb item 8 and 9 on google doc
+# https://qdrant.tech/documentation/quickstart/
+def db_load():
+    from docling.document_converter import DocumentConverter
+    source = "https://arxiv.org/pdf/2408.09869"  # document path, it can also be a array of document names
+    converter = DocumentConverter()
+    result = converter.convert(source) 
+    markdown_text = result.document.export_to_markdown()
+    #print(markdown_text)
+    return markdown_text
 
-#-----------------------------Next we ge tthe sentence tranformer model ready---------------------------------------------------------
-from sentence_transformers import SentenceTransformer
+# This is where Anurag will retrieve the data from qdrantdb with the vectorized input query
+def db_retrieve():
+    return "Hello"
 
-MODEL = 'msmarco-distilbert-base-v4'
-embedder = SentenceTransformer(MODEL)
-embeddings = embedder.encode(chunks, convert_to_tensor=True) 
-# Here the sentences is a list of array of all the documents in the corpus. For us it will be title of each document. 
-# This is where we need to use docking and chonkie
+def load_model_and_data():
+    # Using chonkie to semantic chunk the markdown text
+    from chonkie import SemanticChunker
+    chunker = SemanticChunker(
+        embedding_model="all-MiniLM-L6-v2",
+        threshold=0.8,
+        chunk_size=2048,
+        similarity_window=3,
+        min_sentences_per_chunk=2,
+        min_characters_per_sentence=24
+    )
+    chunks = chunker(db_load())
 
-# Next we see the shape of the embeddings
-print(embeddings.shape)
-#print (f'{chunks[0]}  {embeddings[0]}')
+    #for chunk in chunks:
+    #   print(f"Chunk: {chunk.text}\n")
 
-# Now we will have input box where the user will enter something and we will search for the most similar document in the corpus. 
+    #-----------------------------Next we get the sentence transformer model ready with GPU acceleration---------------------------------------------------------
+    from sentence_transformers import SentenceTransformer
 
-query_text = "chunking is fun" # our user input will be this variable
-# Extra step to add query cleaning and preprocessing here
-query = embedder.encode(query_text, convert_to_tensor=True) # we encode our user input 
+    MODEL = 'multi-qa-mpnet-base-cos-v1'
+    embedder = SentenceTransformer(MODEL)
+    embeddings = embedder.encode(chunks, convert_to_tensor=True)
+    #print(embeddings.shape) 
+    return embeddings,embedder,chunks
 
-# Now we go find the top 3 results that match the most with our query
-from sentence_transformers import util
-search_results = util.semantic_search(query, embeddings, top_k = 3)
-#print(search_results)
-
-# Then we show the documents to the user. 
-for index, result in enumerate(search_results[0]):
-    print('-'*80)
-    print(f'Search Rank: {index}, Relevance score: {result["score"]} ')
-    print(chunks[result['corpus_id']])
-
-# Pasting the code here for query cleaning to be used later when stremlit is integrated. 
- # Add query guidelines
-    # st = 'streamlit'
-    # with st.expander("📝 Query Guidelines", expanded=False):
-    #     st.markdown("""
-    #     **✅ Good queries:**
-    #     - "person with blonde hair and blue eyes"
-    #     - "smiling woman wearing glasses"
-    #     - "man with beard and mustache"
-    #     - "person in formal suit"
-    #     - "woman with red hair smiling"
-    #     - "person wearing a hat"
+def run_search_app():
+    """Launch the Streamlit search interface."""
+    embeddings, embedder,chunks = load_model_and_data()
+    print(f"✅ Model and data loaded")
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, #f0f8ff 0%, #e6f3ff 100%); 
+                border: 3px solid #7FB3D3; border-radius: 25px; 
+                padding: 1.5rem; margin-bottom: 1rem; 
+                box-shadow: 0 20px 40px rgba(127, 179, 211, 0.1);">
+        <div style="text-align: center;">
+            <h1 style="margin: 0 0 0.5rem 0; background: linear-gradient(90deg, #7FB3D3, #98D8C8, #7FB3D3); 
+                       background-size: 200% 200%; -webkit-background-clip: text; 
+                       -webkit-text-fill-color: transparent; background-clip: text; 
+                       font-size: 3rem; font-weight: 700; animation: titleShimmer 2s ease-in-out infinite;">
+                🔍 Patent Search AI
+            </h1>
+            <h3 style="margin: 0; color: #2C3E50; font-style: italic; font-size: 1.2rem;">
+                *Discover patents through AI-powered search*
+            </h3>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
         
-    #     **❌ Please avoid:**
-    #     - Special characters: @#$%^&*+=
-    #     - URLs or links
-    #     - Script tags or code
-    #     - Very long descriptions (>500 chars)
-    #     - Obvious inappropriate content
-    #     """)
+    # Search section with enhanced styling
+    st.markdown("## 🔍 AI-Powered Search")
+    st.markdown("**Describe what you're looking for and let AI find the perfect patent match!**")
+    
+    # Initialize session state for search query
+    if 'search_query' not in st.session_state:
+        st.session_state.search_query = ""
+    
+    # User input with better layout - spread horizontally
+    col1,col2 = st.columns([5,5])
+    
+    with col1:
+        q = st.text_input(
+            "🎯 Search Query", 
+            value=st.session_state.search_query,
+            placeholder="e.g., 'How can I chunk documents'",
+            help="Describe the patent info you're looking for in natural language",
+            key="search_input"
+        ) 
 
-    #     # Input validation and safety checks
-    #     def validate_query(query):
-    #         """Validate and sanitize user input for safety"""
-    #         import re
-            
-    #         # Remove leading/trailing whitespace
-    #         query = query.strip()
-            
-    #         # Check if query is empty after stripping
-    #         if not query:
-    #             return None, "Please enter a search query."
-            
-    #         # Check minimum length
-    #         if len(query) < 2:
-    #             return None, "Query must be at least 2 characters long."
-            
-    #         # Check maximum length (prevent extremely long queries)
-    #         if len(query) > 500:
-    #             return None, "Query is too long. Please keep it under 500 characters."
-            
-    #         # Basic content filtering - only block obvious inappropriate content
-    #         # This is minimal to avoid false positives and over-censorship
-    #         inappropriate_patterns = [
-    #             # Only block obvious explicit content patterns
-    #             r'\b(porn|pornographic|xxx)\b',
-    #             # Block obvious hate speech
-    #             r'\b(nazi|terrorist)\b'
-    #         ]
-            
-    #         # Check for inappropriate content (minimal filtering)
-    #         for pattern in inappropriate_patterns:
-    #             if re.search(pattern, query, re.IGNORECASE):
-    #                 return None, "Query contains inappropriate content. Please use descriptive text about appearance and clothing."
-            
-    #         # Remove potentially harmful characters but keep normal text
-    #         # Allow letters, numbers, spaces, basic punctuation, and common characters
-    #         safe_query = re.sub(r'[^\w\s\-.,!?()\'":;]', '', query)
-            
-    #         # Check if anything meaningful remains after sanitization
-    #         if len(safe_query.strip()) < 2:
-    #             return None, "Query contains invalid characters. Please use only letters, numbers, and basic punctuation."
-            
-    #         # Check for suspicious patterns (basic security)
-    #         suspicious_patterns = [
-    #             r'<script', r'javascript:', r'on\w+\s*=', r'data:', r'vbscript:',
-    #             r'file:', r'ftp:', r'http:', r'https:', r'//', r'\\\\'
-    #         ]
-            
-    #         for pattern in suspicious_patterns:
-    #             if re.search(pattern, query, re.IGNORECASE):
-    #                 return None, "Query contains potentially unsafe content. Please use only descriptive text."
-            
-    #         # Additional check for repeated characters (spam-like)
-    #         if re.search(r'(.)\1{4,}', query):  # 5 or more repeated characters
-    #             return None, "Query contains too many repeated characters. Please use normal text."
-            
-    #         return safe_query.strip(), None
+    # Perform search when user enters a query
+    if q:
+        # Input validation and safety checks
+        def validate_query(query): # This is where Sangeetha will do the Ensamble Prompting / Query Guardrails item 11 on google doc
+            pass
         
-    #     # Validate the query
-    #     validated_query, error_msg = validate_query(q)
-        
-    #     if error_msg:
-    #         st.error(f"❌ {error_msg}")
-    #         st.stop()
-        
-    #     # Update the query variable with the validated version
-    #     q = validated_query
-    #     # Show the processed query for transparency
-    #     if q != q.strip():  # Only show if query was modified
-    #         st.info(f"🔍 Processed query: '{q}'")
+        with st.spinner("Searching..."):
+            try:
+                print(f'Query: {q}')
+                query = embedder.encode(q, convert_to_tensor=True) # we encode our user input 
+
+                from sentence_transformers import util
+                search_results = util.semantic_search(query, embeddings, top_k = 3)
+                # Display results with enhanced styling
+                st.markdown("## 📋 Search Results")
+                 
+                 # Collect all relevant chunks for LLM processing
+                relevant_chunks = []
+                for index, result in enumerate(search_results[0]):
+                    chunk_text = chunks[result["corpus_id"]].text
+                    relevant_chunks.append(f"Result {index+1} (Score: {result['score']:.3f}): {chunk_text}")
+                     
+                     # Display individual results
+                    with st.expander(f"🔍 Result {index+1} (Relevance: {result['score']:.3f})", expanded=index==0):
+                        st.write(chunk_text)
+                 
+                 # Use Ollama LLM to provide a comprehensive answer
+                st.markdown("## 🤖 AI Analysis")
+                 
+                try:
+                    from ollama import Client
+                    client = Client()
+                     
+                     # Prepare context for LLM
+                    context = "\n\n".join(relevant_chunks)
+                    print("line above promt") 
+                    prompt = f"""
+                    Based on the following patent document search results, provide a comprehensive answer to the user's query: "{q}"
+                    
+                    Search Results:
+                    {context}
+                     
+                    Please provide:
+                    1. A direct answer to the user's query based on the search results
+                    2. Key insights from the most relevant results
+                    3. How the search results relate to the user's question
+                     
+                    Answer: """
+                    print("line below promt") 
+                    with st.spinner("🤖 AI is analyzing the results..."):
+                        response = client.generate(model='llama3.1', prompt=prompt)
+                        ai_response = response['response']
+                     
+                     # Display AI response in a nice format
+                    st.markdown(f"""
+                    <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); 
+                                border-left: 4px solid #28a745; border-radius: 10px; 
+                                padding: 1rem; margin: 1rem 0; 
+                                box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                        <h4 style="margin-top: 0; color: #28a745;">🧠 AI Analysis</h4>
+                        <p style="margin-bottom: 0; line-height: 1.6;">{ai_response}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                     
+                except Exception as e:
+                    st.error(f"❌ Error with AI analysis: {e}")
+                    st.info("💡 AI analysis unavailable, but you can still view the search results above.")
+                print("line below ai response") 
+                                         
+            except Exception as e:
+                st.error(f"❌ Search error: {e}")
+
+# Check if running with Streamlit by looking for streamlit in the call stack
+import sys
+import inspect
+
+def is_running_with_streamlit():
+    """Check if the script is being run by Streamlit."""
+    for frame_info in inspect.stack():
+        if 'streamlit' in frame_info.filename:
+            return True
+    return False
+
+# If running with Streamlit, run the app directly
+if is_running_with_streamlit():
+    print("🚀 Running as Streamlit app...")
+    
+
+    # If running as regular Python script
+if __name__ == "__main__":
+    print("🔄 Setting up dataset and embeddings...")
+    
+    run_search_app()
+    
+    print("✅ Setup complete!")
+    print("🚀 To run the search app, use: uv run streamlit run src/Semantic_Search.py")
