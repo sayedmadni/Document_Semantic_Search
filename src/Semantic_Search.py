@@ -1,8 +1,14 @@
 #Trying to use GPU
+from qdrant_client.grpc import Cosine
 import torch
 import sys
 from pathlib import Path
 import streamlit as st
+from qdrant_client import QdrantClient
+from qdrant_client.models import PointStruct, VectorParams, Distance
+import uuid
+
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 # Add the src directory to the Python path for imports
 sys.path.insert(0, str(Path(__file__).parent))
@@ -20,7 +26,75 @@ def db_load():
 
 # This is where Anurag will retrieve the data from qdrantdb with the vectorized input query
 def db_retrieve():
-    return "Hello"
+    return("Hello")
+
+
+def upsert_chunks_to_vecdb(embeddings, chunks):
+    #make connection
+    qdrant_client = QdrantClient(host="localhost", port=6333)
+    
+    #connection name
+    collection_name = "patent_semantic_search"
+
+    #derive vector size from embeddings
+    dim=embeddings.shape[-1]
+
+   # Always delete the old collection if it exists and create a new one
+    if qdrant_client.collection_exists(collection_name):
+        qdrant_client.delete_collection(collection_name=collection_name)
+
+    qdrant_client.create_collection(
+        collection_name=collection_name,
+        vectors_config=VectorParams(
+        size=dim,
+        # TODO: need to confirm with the model whether another method may be need DOT product and/or normalization 
+        distance=Distance.Cosine))
+
+    #Prepare points for vector upsert
+    points = []
+    
+    # If embeddings is a torch.Tensor: move to CPU and to list-of-lists
+    try:
+        vecs = embeddings.cpu().tolist()
+    except AttributeError:
+        # if it's already a list/np array on CPU
+        vecs = embeddings.tolist() if hasattr(embeddings, "tolist") else embeddings
+
+    for i in range(len(vecs)):
+        points.append(
+            PointStruct(
+                id=str(uuid.uuid4()),
+                vector=vecs[i],
+                payload={
+                    "type":"chunk",
+                    "text":chunks[i],
+                    "chunk_idx":i
+                    }
+            )
+        )
+    
+    # this can be used to clean up the chunks if needed. 
+    # def ensure_texts(chunks):
+    # # chonkie chunks often have `.text`; if already strings, just return them
+    # if len(chunks) == 0:
+    #     return []
+    # if isinstance(chunks[0], str):
+    #     return chunks
+    # # fallback: objects with `.text`
+    # return [c.text for c in chunks]
+
+    #Upsert points into Qdrant
+    qdrant_client.upsert(
+        collection_name=collection_name,
+        points=points
+    )
+
+    print("Chunks embedding shape:", embeddings.shape[-1])
+    print("Embeddings stored in Qdrant collection:", collection_name)
+    print("Total vetors stores in Qdrant", len(points))
+
+    return (len(points))
+
 
 def load_model_and_data():
     # Using chonkie to semantic chunk the markdown text
