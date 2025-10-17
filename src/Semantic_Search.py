@@ -7,8 +7,11 @@ import streamlit as st
 from qdrant_client import QdrantClient
 from qdrant_client.models import PointStruct, VectorParams, Distance
 import uuid
+from rich import print as rprint
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+collection_name = "patent_semantic_search"
+qdrant_client = QdrantClient(host="localhost", port=6333)
 
 # Add the src directory to the Python path for imports
 sys.path.insert(0, str(Path(__file__).parent))
@@ -31,24 +34,41 @@ def db_retrieve():
 
 def upsert_chunks_to_vecdb(embeddings, chunks):
     #make connection
-    qdrant_client = QdrantClient(host="localhost", port=6333)
+    
+    
+    # check docker ps 
+    # uncomment and run from labshare if the docker instance is not running
+    # docker run -d -p 0.0.0.0:6333:6333 -p 6334:6334 \
+    # -v "$(pwd)/qdrant_storage:/qdrant/storage:z" \
+    # qdrant/qdrant
+
+    # print("Connection with qdrant port 6333 established")
     
     #connection name
-    collection_name = "patent_semantic_search"
 
     #derive vector size from embeddings
     dim=embeddings.shape[-1]
+    print("embeddings shape, hence the desired size of the vector collection, is ", dim)
 
-   # Always delete the old collection if it exists and create a new one
-    if qdrant_client.collection_exists(collection_name):
-        qdrant_client.delete_collection(collection_name=collection_name)
+    # Always delete the old collection if it exists and create a new one
+    try:
+        if qdrant_client.collection_exists(collection_name):
+            qdrant_client.delete_collection(collection_name=collection_name)
+            print(f"Older collection {collection_name} deleted")
+    except Exception as e:
+        print(f"Warning: Could not check/delete existing collection: {e}")
 
-    qdrant_client.create_collection(
-        collection_name=collection_name,
-        vectors_config=VectorParams(
-        size=dim,
-        # TODO: need to confirm with the model whether another method may be need DOT product and/or normalization 
-        distance=Distance.Cosine))
+    try:
+        qdrant_client.create_collection(
+            collection_name=collection_name,
+            vectors_config=VectorParams(
+                size=dim,
+                distance=Distance.COSINE))
+    except Exception as e:
+        print(f"Error creating collection: {e}")
+        raise
+    
+    print(f"New collection: {collection_name} created")
 
     #Prepare points for vector upsert
     points = []
@@ -60,7 +80,9 @@ def upsert_chunks_to_vecdb(embeddings, chunks):
         # if it's already a list/np array on CPU
         vecs = embeddings.tolist() if hasattr(embeddings, "tolist") else embeddings
 
+
     for i in range(len(vecs)):
+        # print(f"for loop embedding # {i}")
         points.append(
             PointStruct(
                 id=str(uuid.uuid4()),
@@ -107,6 +129,7 @@ def load_model_and_data():
         min_sentences_per_chunk=2,
         min_characters_per_sentence=24
     )
+
     chunks = chunker(db_load())
 
     #for chunk in chunks:
@@ -119,10 +142,19 @@ def load_model_and_data():
     embedder = SentenceTransformer(MODEL)
     embeddings = embedder.encode(chunks, convert_to_tensor=True)
     #print(embeddings.shape) 
+
+    upsert_chunks_to_vecdb(embeddings, chunks)
+
+    # TODO: Need to update this return to send qdrant hook back to the main program
     return embeddings,embedder,chunks
+
+def return_qdrant_search():
+    pass
+
 
 def run_search_app():
     """Launch the Streamlit search interface."""
+    #TODO: instead of returning eb
     embeddings, embedder,chunks = load_model_and_data()
     print(f"✅ Model and data loaded")
     st.markdown("""
@@ -175,6 +207,25 @@ def run_search_app():
                 print(f'Query: {q}')
                 query = embedder.encode(q, convert_to_tensor=True) # we encode our user input 
 
+                # Qdrant expects a numeric vector here (list[float]), not raw text
+                query_vec = embedder.encode([q], convert_to_numpy=True)[0].tolist()
+
+                search_result = qdrant_client.query_points(
+                    collection_name=collection_name,
+                    query=query_vec,
+                    with_payload=True,
+                    limit=3
+                ).points
+
+                irrelevant_chunks = []
+                for p in search_result:
+                    if p.payload and "text" in p.payload:
+                        irrelevant_chunks.append(p.payload["text"])
+
+                print(irrelevant_chunks)
+                # function takes the input as text and the output will be the chunks
+
+
                 from sentence_transformers import util
                 search_results = util.semantic_search(query, embeddings, top_k = 3)
                 # Display results with enhanced styling
@@ -182,12 +233,11 @@ def run_search_app():
                  
                  # Collect all relevant chunks for LLM processing
                 relevant_chunks = []
-                for index, result in enumerate(search_results[0]):
-                    chunk_text = chunks[result["corpus_id"]].text
-                    relevant_chunks.append(f"Result {index+1} (Score: {result['score']:.3f}): {chunk_text}")
-                     
-                     # Display individual results
-                    with st.expander(f"🔍 Result {index+1} (Relevance: {result['score']:.3f})", expanded=index==0):
+                for index, chunk_text in enumerate(irrelevant_chunks):
+                    # Score is not directly available from irrelevant_chunks; show plain text
+                    relevant_chunks.append(f"Result {index+1}: {chunk_text}")
+                    # Display individual results
+                    with st.expander(f"🔍 Result {index+1}", expanded=index==0):
                         st.write(chunk_text)
                  
                  # Use Ollama LLM to provide a comprehensive answer
