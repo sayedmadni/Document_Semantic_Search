@@ -9,17 +9,6 @@ embedder = SentenceTransformer(MODEL)
 
 
 def search_qdrant(q:str) -> list[str]:
-    
-#     text_query = "What is the relationship between force and acceleration?"
-# matryoshka_768_vectors = matryoshka_model.encode([text_query], convert_to_numpy=True)[0]
-# response = qdrant_client.query_points(
-#             collection_name="hybrid_search",
-#             query=matryoshka_768_vectors.tolist(),
-#             using="matryoshka_768",
-#             with_payload=True,
-#             limit=3,
-#         )
-
     # Encode the query into a vector list[float]
     query = embedder.encode([q], convert_to_numpy=True)[0].tolist()
 
@@ -32,12 +21,13 @@ def search_qdrant(q:str) -> list[str]:
 
     # Return just the payload texts (if present)
     texts = []
-    for p in search_result:
+    for index,p in enumerate(search_result):
         if p.payload and "text" in p.payload:
-            texts.append(p.payload["text"])
+            texts.append(f"Result {index+1}: {p.payload["text"]["text"]}")
+    print("\n".join(texts))
     return texts
 
 if __name__ == "__main__":
     results=search_qdrant("What is chonkie?")
-    print(results)
+    #print(results)
     

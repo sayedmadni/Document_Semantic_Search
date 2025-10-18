@@ -1,162 +1,17 @@
 #Trying to use GPU
-from qdrant_client.grpc import Cosine
 import torch
 import sys
 from pathlib import Path
 import streamlit as st
-from qdrant_client import QdrantClient
-from qdrant_client.models import PointStruct, VectorParams, Distance
-import uuid
-from rich import print as rprint
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-collection_name = "patent_semantic_search"
-qdrant_client = QdrantClient(host="localhost", port=6333)
+print(f"Using device: {DEVICE}")
 
 # Add the src directory to the Python path for imports
 sys.path.insert(0, str(Path(__file__).parent))
 
-# This is where Anurag will create the Payload into qdrantdb item 8 and 9 on google doc
-# https://qdrant.tech/documentation/quickstart/
-def db_load():
-    from docling.document_converter import DocumentConverter
-    source = "https://arxiv.org/pdf/2408.09869"  # document path, it can also be a array of document names
-    converter = DocumentConverter()
-    result = converter.convert(source) 
-    markdown_text = result.document.export_to_markdown()
-    #print(markdown_text)
-    return markdown_text
-
-# This is where Anurag will retrieve the data from qdrantdb with the vectorized input query
-def db_retrieve():
-    return("Hello")
-
-
-def upsert_chunks_to_vecdb(embeddings, chunks):
-    #make connection
-    
-    
-    # check docker ps 
-    # uncomment and run from labshare if the docker instance is not running
-    # docker run -d -p 0.0.0.0:6333:6333 -p 6334:6334 \
-    # -v "$(pwd)/qdrant_storage:/qdrant/storage:z" \
-    # qdrant/qdrant
-
-    # print("Connection with qdrant port 6333 established")
-    
-    #connection name
-
-    #derive vector size from embeddings
-    dim=embeddings.shape[-1]
-    print("embeddings shape, hence the desired size of the vector collection, is ", dim)
-
-    # Always delete the old collection if it exists and create a new one
-    try:
-        if qdrant_client.collection_exists(collection_name):
-            qdrant_client.delete_collection(collection_name=collection_name)
-            print(f"Older collection {collection_name} deleted")
-    except Exception as e:
-        print(f"Warning: Could not check/delete existing collection: {e}")
-
-    try:
-        qdrant_client.create_collection(
-            collection_name=collection_name,
-            vectors_config=VectorParams(
-                size=dim,
-                distance=Distance.COSINE))
-    except Exception as e:
-        print(f"Error creating collection: {e}")
-        raise
-    
-    print(f"New collection: {collection_name} created")
-
-    #Prepare points for vector upsert
-    points = []
-    
-    # If embeddings is a torch.Tensor: move to CPU and to list-of-lists
-    try:
-        vecs = embeddings.cpu().tolist()
-    except AttributeError:
-        # if it's already a list/np array on CPU
-        vecs = embeddings.tolist() if hasattr(embeddings, "tolist") else embeddings
-
-
-    for i in range(len(vecs)):
-        # print(f"for loop embedding # {i}")
-        points.append(
-            PointStruct(
-                id=str(uuid.uuid4()),
-                vector=vecs[i],
-                payload={
-                    "type":"chunk",
-                    "text":chunks[i],
-                    "chunk_idx":i
-                    }
-            )
-        )
-    
-    # this can be used to clean up the chunks if needed. 
-    # def ensure_texts(chunks):
-    # # chonkie chunks often have `.text`; if already strings, just return them
-    # if len(chunks) == 0:
-    #     return []
-    # if isinstance(chunks[0], str):
-    #     return chunks
-    # # fallback: objects with `.text`
-    # return [c.text for c in chunks]
-
-    #Upsert points into Qdrant
-    qdrant_client.upsert(
-        collection_name=collection_name,
-        points=points
-    )
-
-    print("Chunks embedding shape:", embeddings.shape[-1])
-    print("Embeddings stored in Qdrant collection:", collection_name)
-    print("Total vetors stores in Qdrant", len(points))
-
-    return (len(points))
-
-
-def load_model_and_data():
-    # Using chonkie to semantic chunk the markdown text
-    from chonkie import SemanticChunker
-    chunker = SemanticChunker(
-        embedding_model="all-MiniLM-L6-v2",
-        threshold=0.8,
-        chunk_size=2048,
-        similarity_window=3,
-        min_sentences_per_chunk=2,
-        min_characters_per_sentence=24
-    )
-
-    chunks = chunker(db_load())
-
-    #for chunk in chunks:
-    #   print(f"Chunk: {chunk.text}\n")
-
-    #-----------------------------Next we get the sentence transformer model ready with GPU acceleration---------------------------------------------------------
-    from sentence_transformers import SentenceTransformer
-
-    MODEL = 'multi-qa-mpnet-base-cos-v1'
-    embedder = SentenceTransformer(MODEL)
-    embeddings = embedder.encode(chunks, convert_to_tensor=True)
-    #print(embeddings.shape) 
-
-    upsert_chunks_to_vecdb(embeddings, chunks)
-
-    # TODO: Need to update this return to send qdrant hook back to the main program
-    return embeddings,embedder,chunks
-
-def return_qdrant_search():
-    pass
-
-
 def run_search_app():
     """Launch the Streamlit search interface."""
-    #TODO: instead of returning eb
-    embeddings, embedder,chunks = load_model_and_data()
-    print(f"✅ Model and data loaded")
     st.markdown("""
     <div style="background: linear-gradient(135deg, #f0f8ff 0%, #e6f3ff 100%); 
                 border: 3px solid #7FB3D3; border-radius: 25px; 
@@ -205,41 +60,25 @@ def run_search_app():
         with st.spinner("Searching..."):
             try:
                 print(f'Query: {q}')
-                query = embedder.encode(q, convert_to_tensor=True) # we encode our user input 
-
-                # Qdrant expects a numeric vector here (list[float]), not raw text
-                query_vec = embedder.encode([q], convert_to_numpy=True)[0].tolist()
-
-                search_result = qdrant_client.query_points(
-                    collection_name=collection_name,
-                    query=query_vec,
-                    with_payload=True,
-                    limit=3
-                ).points
-
-                irrelevant_chunks = []
-                for p in search_result:
-                    if p.payload and "text" in p.payload:
-                        irrelevant_chunks.append(p.payload["text"])
-
-                print(irrelevant_chunks)
-                # function takes the input as text and the output will be the chunks
-
-
-                from sentence_transformers import util
-                search_results = util.semantic_search(query, embeddings, top_k = 3)
-                # Display results with enhanced styling
+                
+                # Use Qdrant search function
+                from search import search_qdrant
+                search_results = search_qdrant(q)
+                
+                # Display search results
                 st.markdown("## 📋 Search Results")
-                 
-                 # Collect all relevant chunks for LLM processing
+                
+                # Collect all relevant chunks for LLM processing
                 relevant_chunks = []
-                for index, chunk_text in enumerate(irrelevant_chunks):
-                    # Score is not directly available from irrelevant_chunks; show plain text
-                    relevant_chunks.append(f"Result {index+1}: {chunk_text}")
+                for index, result in enumerate(search_results):
+                    relevant_chunks.append(result)
+                    
                     # Display individual results
                     with st.expander(f"🔍 Result {index+1}", expanded=index==0):
-                        st.write(chunk_text)
-                 
+                        # Extract just the text part from the result
+                        result_text = result.split(": ", 1)[1] if ": " in result else result
+                        st.write(result_text)
+
                  # Use Ollama LLM to provide a comprehensive answer
                 st.markdown("## 🤖 AI Analysis")
                  
@@ -249,7 +88,7 @@ def run_search_app():
                      
                      # Prepare context for LLM
                     context = "\n\n".join(relevant_chunks)
-                    print("line above promt") 
+
                     prompt = f"""
                     Based on the following patent document search results, provide a comprehensive answer to the user's query: "{q}"
                     
@@ -281,7 +120,6 @@ def run_search_app():
                 except Exception as e:
                     st.error(f"❌ Error with AI analysis: {e}")
                     st.info("💡 AI analysis unavailable, but you can still view the search results above.")
-                print("line below ai response") 
                                          
             except Exception as e:
                 st.error(f"❌ Search error: {e}")
