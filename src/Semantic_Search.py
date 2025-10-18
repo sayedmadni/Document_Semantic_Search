@@ -3,9 +3,6 @@ import torch
 import sys
 from pathlib import Path
 import streamlit as st
-from qdrant_client import QdrantClient
-from qdrant_client.models import PointStruct, VectorParams, Distance
-import uuid
 from check_toxicity import query_guadrails
 from check_basic_rules import query_guadrails
 from prompt_paraphase import paraphrase_sentence
@@ -60,16 +57,7 @@ def run_search_app():
 
     # Perform search when user enters a query
     if q:
-        # Input validation and safety checks
-        # This is where Sangeetha will do the Ensamble Prompting / Query Guardrails item 11 on google doc
-
-        if not validate_input(q: str)-> bool:
-            return False
-            
-       
-
-       
-        
+        # Input validation and safety check       
         with st.spinner("Searching..."):
             try:
                 print(f'Query: {q}')
@@ -86,12 +74,10 @@ def run_search_app():
                 for i, final_output in enumerate(paraphrased_questions):
                     print(f"{i+1}: {final_output}")
 
-                #need to check if we can pass the paraphrased_questions to the embedder.encde call
+                #need to check if we can pass the paraphrased_questions to the embedder.encode call
 
-                query = embedder.encode(q, convert_to_tensor=True) # we encode our user input 
-
-                from sentence_transformers import util
-                search_results = util.semantic_search(query, embeddings, top_k = 3)
+                #from sentence_transformers import util
+                #search_results = util.semantic_search(query, embeddings, top_k = 3)
                 # Display results with enhanced styling
                 st.markdown("## 📋 Search Results")
                 
