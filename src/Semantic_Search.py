@@ -7,6 +7,10 @@ import streamlit as st
 from qdrant_client import QdrantClient
 from qdrant_client.models import PointStruct, VectorParams, Distance
 import uuid
+from check_toxicity import query_guadrails
+from check_basic_rules import query_guadrails
+from prompt_paraphase import paraphrase_sentence
+
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -167,12 +171,27 @@ def run_search_app():
     # Perform search when user enters a query
     if q:
         # Input validation and safety checks
-        def validate_query(query): # This is where Sangeetha will do the Ensamble Prompting / Query Guardrails item 11 on google doc
-            pass
+        # This is where Sangeetha will do the Ensamble Prompting / Query Guardrails item 11 on google doc
+
+        if not validate_input(q: str)-> bool:
+            return False
+            
+       
+
+       
         
         with st.spinner("Searching..."):
             try:
                 print(f'Query: {q}')
+                #getting paraphrase questions for the input query
+                paraphrased_questions = paraphrase_sentence(q)
+                print("\nParaphrased Questions :: ")
+                
+                for i, final_output in enumerate(paraphrased_questions):
+                    print(f"{i+1}: {final_output}")
+
+                #need to check if we can pass the paraphrased_questions to the embedder.encde call
+
                 query = embedder.encode(q, convert_to_tensor=True) # we encode our user input 
 
                 from sentence_transformers import util
@@ -235,6 +254,30 @@ def run_search_app():
                                          
             except Exception as e:
                 st.error(f"❌ Search error: {e}")
+
+def validate_input(text: str):
+    """Combine rule-based and AI-based guardrails."""
+    issues = check_basic_rules(text)
+    check_toxicity_result = check_toxicity(text, threshold=0.5)
+
+    if check_toxicity_result:
+        print("Detected Toxicity Categories:")
+    for category, score in check_toxicity_result.items():
+        print(f"  - {category}: {score:.4f}")
+        return False
+    else:
+        print("No significant toxicity detected.")
+        
+
+    if issues:
+        print("Input blocked due to:")
+        for i in issues:
+            print(f" - {i}")
+        return False
+    else:
+        print("Input passed moderation.")
+        return True
+
 
 # Check if running with Streamlit by looking for streamlit in the call stack
 import sys
