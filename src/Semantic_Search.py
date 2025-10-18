@@ -26,10 +26,10 @@ def run_search_app():
                        background-size: 200% 200%; -webkit-background-clip: text; 
                        -webkit-text-fill-color: transparent; background-clip: text; 
                        font-size: 3rem; font-weight: 700; animation: titleShimmer 2s ease-in-out infinite;">
-                🔍 Patent Search AI
+                🔍 College Admissions Search
             </h1>
             <h3 style="margin: 0; color: #2C3E50; font-style: italic; font-size: 1.2rem;">
-                *Discover patents through AI-powered search*
+                *Discover college admission guidance through AI-powered search*
             </h3>
         </div>
     </div>
@@ -37,22 +37,23 @@ def run_search_app():
         
     # Search section with enhanced styling
     st.markdown("## 🔍 AI-Powered Search")
-    st.markdown("**Describe what you're looking for and let AI find the perfect patent match!**")
+    st.markdown("**Describe what you're looking for and let AI find the perfect answer to your question!**")
     
     # Initialize session state for search query
     if 'search_query' not in st.session_state:
         st.session_state.search_query = ""
     
     # User input with better layout - spread horizontally
-    col1,col2 = st.columns([5,5])
+    col1,col2 = st.columns([8,2])
     
     with col1:
-        q = st.text_input(
+        q = st.text_area(
             "🎯 Search Query", 
             value=st.session_state.search_query,
-            placeholder="e.g., 'How can I chunk documents'",
-            help="Describe the patent info you're looking for in natural language",
-            key="search_input"
+            placeholder="e.g., 'How can I prepare for the SAT?'",
+            help="Describe the college admission info you're looking for in natural language",
+            key="search_input",
+            height=100
         ) 
 
     # Perform search when user enters a query
