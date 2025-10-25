@@ -90,19 +90,20 @@ def run_search_app():
                         return False
                     
                     #getting paraphrase questions for the input query
-                    #paraphrased_questions = paraphrase_sentence(q)
-                    #print("\nParaphrased Questions :: ")
+                    paraphrased_questions = paraphrase_sentence(q)
+                    print("\nParaphrased Questions :: ")
                     
-                    #for i, final_output in enumerate(paraphrased_questions):
-                    #    print(f"{i+1}: {final_output}")
+                    for i, final_output in enumerate(paraphrased_questions):
+                        print(f"{i+1}: {final_output}")
 
                     # Use Qdrant search function
                     from search import search_qdrant
                     search_results = search_qdrant(q)
                     
+                    from search import search_qdrant_queries
+                    search_results_1 = search_qdrant_queries(paraphrased_questions)
+                    
                     # Display search results
-                   
-
                     #need to check if we can pass the paraphrased_questions to the embedder.encode call
 
                     #from sentence_transformers import util

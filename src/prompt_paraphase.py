@@ -36,7 +36,7 @@ def paraphrase_sentence(sentence):
   model, tokenizer = load_paraphrasing_model()
   device = get_device()
   model.to(device)
-  paraphrase_sentence_gen(model, tokenizer, device, sentence)
+  return paraphrase_sentence_gen(model, tokenizer, device, sentence)
 
 def paraphrase_sentence_gen(model, tokenizer, device, sentence, num_return_sequences=10, max_len=256):
   """
@@ -56,31 +56,36 @@ def paraphrase_sentence_gen(model, tokenizer, device, sentence, num_return_seque
   text = f"paraphrase: {sentence} </s>"
 
   print("Inside paraphrase_sentence_gen")
+  print(sentence)
+  try:
+      encoding = tokenizer.encode_plus(
+          text,
+          max_length=max_len,
+          pad_to_max_length=True,
+          return_tensors="pt"
+      )
+      input_ids, attention_masks = encoding["input_ids"].to(device), encoding["attention_mask"].to(device)
 
-  encoding = tokenizer.encode_plus(
-      text,
-      max_length=max_len,
-      pad_to_max_length=True,
-      return_tensors="pt"
-  )
-  input_ids, attention_masks = encoding["input_ids"].to(device), encoding["attention_mask"].to(device)
+      beam_outputs = model.generate(
+          input_ids=input_ids,
+          attention_mask=attention_masks,
+          do_sample=True,
+          max_length=max_len,
+          top_k=120,
+          top_p=0.98,
+          early_stopping=True,
+          num_return_sequences=num_return_sequences
+      )
 
-  beam_outputs = model.generate(
-      input_ids=input_ids,
-      attention_mask=attention_masks,
-      do_sample=True,
-      max_length=max_len,
-      top_k=120,
-      top_p=0.98,
-      early_stopping=True,
-      num_return_sequences=num_return_sequences
-  )
-
-  final_outputs = []
-  for beam_output in beam_outputs:
-    sent = tokenizer.decode(beam_output, skip_special_tokens=True, clean_up_tokenization_spaces=True)
-    if sent.lower() != sentence.lower() and sent not in final_outputs:
-      final_outputs.append(sent)
+      final_outputs = []
+      for beam_output in beam_outputs:
+        sent = tokenizer.decode(beam_output, skip_special_tokens=True, clean_up_tokenization_spaces=True)
+        #print(sent)
+        if sent.lower() != sentence.lower() and sent not in final_outputs:
+          final_outputs.append(sent)
+  except Exception as e:
+    # Code that runs if an error occurs
+    print("An error occurred:", e)
   
   return final_outputs
 
@@ -98,7 +103,7 @@ def main():
   sentence = "Which course should I take to get started in data science?"
   #sentence  = "As AI shapes human decisions, does algorithmic morality reduce responsibility? Examine culture, bias, emotion, and empathy in balancing tech efficiency."
   # Generate paraphrases
-  paraphrased_questions = paraphrase_sentence(model, tokenizer, device, sentence)
+  paraphrased_questions = paraphrase_sentence_gen(model, tokenizer, device, sentence)
 
   # Print results
   print("\nOriginal Question ::")
