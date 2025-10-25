@@ -4,7 +4,8 @@ import sys
 from pathlib import Path
 import streamlit as st
 import streamlit.components.v1 as components
-from query_guadrails import query_guadrails
+from query_guadrails import check_toxicity
+from query_guadrails import check_basic_rules
 from prompt_paraphase import paraphrase_sentence
 
 
@@ -83,18 +84,24 @@ def run_search_app():
             with st.spinner("Searching..."):
                 try:
                     print(f'Query: {q}')
+                    #added to check the toxicity in the input query
+                    if not validate_input(q):
+                        st.markdown("Detected Toxicity in the input query")
+                        return False
                     
+                    #getting paraphrase questions for the input query
+                    #paraphrased_questions = paraphrase_sentence(q)
+                    #print("\nParaphrased Questions :: ")
+                    
+                    #for i, final_output in enumerate(paraphrased_questions):
+                    #    print(f"{i+1}: {final_output}")
+
                     # Use Qdrant search function
                     from search import search_qdrant
                     search_results = search_qdrant(q)
                     
                     # Display search results
-                    #getting paraphrase questions for the input query
-                    paraphrased_questions = paraphrase_sentence(q)
-                    print("\nParaphrased Questions :: ")
-                    
-                    for i, final_output in enumerate(paraphrased_questions):
-                        print(f"{i+1}: {final_output}")
+                   
 
                     #need to check if we can pass the paraphrased_questions to the embedder.encode call
 

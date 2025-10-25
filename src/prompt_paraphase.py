@@ -9,12 +9,12 @@ def set_seed(seed):
     torch.cuda.manual_seed_all(seed)
 
 # Set seed for reproducibility
-  set_seed(42)
+ # set_seed(42)
 
   # Load model, tokenizer, and select device
-  model, tokenizer = load_paraphrasing_model()
-  device = get_device()
-  model.to(device)
+ # model, tokenizer = load_paraphrasing_model()
+ # device = get_device()
+ # model.to(device)
 
 def load_paraphrasing_model(model_name='ramsrigouthamg/t5_paraphraser'):
   """Loads the T5 paraphrasing model and tokenizer."""
@@ -29,9 +29,16 @@ def get_device():
   return device
 
 def paraphrase_sentence(sentence):
-    paraphrase_sentence(model, tokenizer, device, sentence)
+  print("Inside paraphrase_sentence")
+  set_seed(42)
 
-def paraphrase_sentence(model, tokenizer, device, sentence, num_return_sequences=10, max_len=256):
+  # Load model, tokenizer, and select device
+  model, tokenizer = load_paraphrasing_model()
+  device = get_device()
+  model.to(device)
+  paraphrase_sentence_gen(model, tokenizer, device, sentence)
+
+def paraphrase_sentence_gen(model, tokenizer, device, sentence, num_return_sequences=10, max_len=256):
   """
   Generates paraphrased versions of a given sentence.
 
@@ -47,6 +54,9 @@ def paraphrase_sentence(model, tokenizer, device, sentence, num_return_sequences
     A list of unique, paraphrased sentences.
   """
   text = f"paraphrase: {sentence} </s>"
+
+  print("Inside paraphrase_sentence_gen")
+
   encoding = tokenizer.encode_plus(
       text,
       max_length=max_len,
