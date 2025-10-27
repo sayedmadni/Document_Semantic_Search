@@ -27,6 +27,26 @@ def search_qdrant(q:str) -> list[str]:
     print("\n".join(texts))
     return texts
 
+def search_qdrant_queries(queries: list[str]) -> list[str]:
+    # Encode the query into a vector list[float]
+    query_vectors = embedder.encode(queries, convert_to_numpy=True)
+
+    search_result = qdrant_client.query_points(
+        collection_name=collection_name,
+        query=query_vectors,
+        with_payload=True,
+        limit=3
+    ).points
+
+    # Return just the payload texts (if present)
+    texts = []
+    for index,p in enumerate(search_result):
+        if p.payload and "text" in p.payload:
+            texts.append(f"Result {index+1}: {p.payload["text"]["text"]}")
+    print("\n".join(texts))
+    return texts
+
+
 if __name__ == "__main__":
     results=search_qdrant("What is chonkie?")
     #print(results)

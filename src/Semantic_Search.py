@@ -4,8 +4,9 @@ import sys
 from pathlib import Path
 import streamlit as st
 import streamlit.components.v1 as components
-#from query_guadrails import query_guadrails
-#from prompt_paraphase import paraphrase_sentence
+from query_guadrails import check_toxicity
+from query_guadrails import check_basic_rules
+from prompt_paraphase import paraphrase_sentence
 
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -83,12 +84,11 @@ def run_search_app():
             with st.spinner("Searching..."):
                 try:
                     print(f'Query: {q}')
+                    #added to check the toxicity in the input query
+                    if not validate_input(q):
+                        st.markdown("Detected Toxicity in the input query")
+                        return False
                     
-                    # Use Qdrant search function
-                    from search import search_qdrant
-                    search_results = search_qdrant(q)
-                    
-                    # Display search results
                     #getting paraphrase questions for the input query
                     #paraphrased_questions = paraphrase_sentence(q)
                     #print("\nParaphrased Questions :: ")
@@ -96,6 +96,14 @@ def run_search_app():
                     #for i, final_output in enumerate(paraphrased_questions):
                     #    print(f"{i+1}: {final_output}")
 
+                    # Use Qdrant search function
+                    from search import search_qdrant
+                    search_results = search_qdrant(q)
+                    
+                    from search import search_qdrant_queries
+                    search_results_1 = search_qdrant_queries(paraphrased_questions)
+                    
+                    # Display search results
                     #need to check if we can pass the paraphrased_questions to the embedder.encode call
 
                     #from sentence_transformers import util
