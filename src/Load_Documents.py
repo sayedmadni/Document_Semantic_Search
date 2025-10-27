@@ -1,3 +1,4 @@
+import time
 from qdrant_client import QdrantClient
 from qdrant_client.models import PointStruct, VectorParams, Distance
 from qdrant_client.grpc import Cosine
@@ -7,7 +8,11 @@ from rich import print as rprint
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 collection_name = "patent_semantic_search"
-qdrant_client = QdrantClient(host="localhost", port=6333)
+qdrant_client = QdrantClient(
+    host="localhost", 
+    port=6333,
+    timeout=60  # Increase timeout to 60 seconds
+)
 
 def load_documents():
     # Using chonkie to semantic chunk the markdown text
@@ -27,49 +32,64 @@ def load_documents():
 
     MODEL = 'multi-qa-mpnet-base-cos-v1'
     embedder = SentenceTransformer(MODEL)
-    embeddings = embedder.encode(chunks, convert_to_tensor=True)
+    embeddings = embedder.encode(chunks, convert_to_tensor=True, device=DEVICE)
     #print(embeddings.shape) 
 
     upsert_chunks_to_vecdb(embeddings, chunks)
     return embeddings,embedder,chunks
 
 def db_load():
-    sources = [
-    "https://arxiv.org/pdf/2408.09869",
-    "https://arxiv.org/pdf/2408.09870",
-    "https://arxiv.org/pdf/2408.09871",
-    "https://arxiv.org/pdf/2408.09872",
-    "https://arxiv.org/pdf/2408.09873",
-    "https://arxiv.org/pdf/2408.09874",
-    ]
-
+    import os
+    import glob
     from docling.document_converter import DocumentConverter
+    
+    # Local directory containing education documents
+    education_dir = "/home/anuragd/labshare/corpus/education"
+    
+    # Find all PDF files in the directory
+    pdf_pattern = os.path.join(education_dir, "*.pdf")
+    sources = glob.glob(pdf_pattern)
+    
+    # If no PDFs found, also check for other document types
+    if not sources:
+        # Check for other common document formats
+        for ext in ["*.docx", "*.doc", "*.txt", "*.md"]:
+            pattern = os.path.join(education_dir, ext)
+            sources.extend(glob.glob(pattern))
+    
+    print(f"📁 Found {len(sources)} documents in {education_dir}")
+    for i, source in enumerate(sources):
+        print(f"  {i+1}. {os.path.basename(source)}")
+    
+    if not sources:
+        print(f"❌ No documents found in {education_dir}")
+        return ""
     
     # Loop through all documents and combine their markdown text
     all_markdown_text = ""
     converter = DocumentConverter()
     
-    for i, source in enumerate(sources):
-        print(f"Processing document {i+1}/{len(sources)}: {source}")
+    for i, source in enumerate(sources[:1000]): # limit the number of documents to 1000 for testing
+        filename = os.path.basename(source)
+        print(f"Processing document {i+1}/{len(sources)}: {filename}")
         try:
             result = converter.convert(source)
             markdown_text = result.document.export_to_markdown()
             
             # Add document separator and source info
-            all_markdown_text += f"\n\n--- Document {i+1}: {source} ---\n\n"
+            all_markdown_text += f"\n\n--- Document {i+1}: {filename} ---\n\n"
             all_markdown_text += markdown_text
             
-            print(f"✅ Successfully processed document {i+1}")
+            print(f"✅ Successfully processed document {i+1}: {filename}")
             
         except Exception as e:
-            print(f"❌ Error processing document {i+1} ({source}): {e}")
+            print(f"❌ Error processing document {i+1} ({filename}): {e}")
             continue
     
     print(f"📄 Total documents processed: {len(sources)}")
     print(f"📝 Combined markdown text length: {len(all_markdown_text)} characters")
     
     return all_markdown_text
-
 
 def upsert_chunks_to_vecdb(embeddings, chunks):
     # check docker ps 
@@ -140,11 +160,24 @@ def upsert_chunks_to_vecdb(embeddings, chunks):
     # # fallback: objects with `.text`
     # return [c.text for c in chunks]
 
-    #Upsert points into Qdrant
-    qdrant_client.upsert(
-        collection_name=collection_name,
-        points=points
-    )
+    #Upsert points into Qdrant in batches to avoid timeout
+    batch_size = 50  # Process 50 points at a time
+    total_points = len(points)
+    
+    for i in range(0, total_points, batch_size):
+        batch = points[i:i + batch_size]
+        print(f"Upserting batch {i//batch_size + 1}/{(total_points + batch_size - 1)//batch_size} ({len(batch)} points)")
+        
+        try:
+            qdrant_client.upsert(
+                collection_name=collection_name,
+                points=batch
+            )
+            print(f"✅ Successfully upserted batch {i//batch_size + 1}")
+        except Exception as e:
+            print(f"❌ Error upserting batch {i//batch_size + 1}: {e}")
+            # Continue with next batch instead of failing completely
+            continue
 
     print("Chunks embedding shape:", embeddings.shape[-1])
     print("Embeddings stored in Qdrant collection:", collection_name)
@@ -156,4 +189,3 @@ def upsert_chunks_to_vecdb(embeddings, chunks):
 
 if __name__ == "__main__":
     results=load_documents()
-    #print(results)

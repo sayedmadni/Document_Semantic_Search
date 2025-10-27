@@ -4,8 +4,8 @@ import sys
 from pathlib import Path
 import streamlit as st
 import streamlit.components.v1 as components
-from query_guadrails import query_guadrails
-from prompt_paraphase import paraphrase_sentence
+#from query_guadrails import query_guadrails
+#from prompt_paraphase import paraphrase_sentence
 
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -90,11 +90,11 @@ def run_search_app():
                     
                     # Display search results
                     #getting paraphrase questions for the input query
-                    paraphrased_questions = paraphrase_sentence(q)
-                    print("\nParaphrased Questions :: ")
+                    #paraphrased_questions = paraphrase_sentence(q)
+                    #print("\nParaphrased Questions :: ")
                     
-                    for i, final_output in enumerate(paraphrased_questions):
-                        print(f"{i+1}: {final_output}")
+                    #for i, final_output in enumerate(paraphrased_questions):
+                    #    print(f"{i+1}: {final_output}")
 
                     #need to check if we can pass the paraphrased_questions to the embedder.encode call
 
@@ -125,7 +125,7 @@ def run_search_app():
                         context = "\n\n".join(relevant_chunks)
 
                         prompt = f"""
-                        Based on the following patent document search results, provide a comprehensive answer to the user's query: "{q}"
+                        Based on the following college admission document search results, provide a comprehensive answer to the user's query: "{q}"
                         
                         Search Results:
                         {context}
