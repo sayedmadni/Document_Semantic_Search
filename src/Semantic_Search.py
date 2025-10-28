@@ -1,4 +1,5 @@
 #Trying to use GPU
+from Inference_Server_Model import inference_server_model
 import torch
 import sys
 from pathlib import Path
@@ -7,7 +8,6 @@ import streamlit.components.v1 as components
 from query_guadrails import check_toxicity
 from query_guadrails import check_basic_rules
 from prompt_paraphase import paraphrase_sentence
-
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Using device: {DEVICE}")
@@ -126,29 +126,7 @@ def run_search_app():
                     st.markdown("## 🤖 AI Analysis")
                      
                     try:
-                        from ollama import Client
-                        client = Client()
-                         
-                        # Prepare context for LLM
-                        context = "\n\n".join(relevant_chunks)
-
-                        prompt = f"""
-                        Based on the following college admission document search results, provide a comprehensive answer to the user's query: "{q}"
-                        
-                        Search Results:
-                        {context}
-                         
-                        Please provide:
-                        1. A direct answer to the user's query based on the search results
-                        2. Key insights from the most relevant results
-                        3. How the search results relate to the user's question
-                         
-                        Answer: """
-                        print("line below promt") 
-                        with st.spinner("🤖 AI is analyzing the results..."):
-                            response = client.generate(model='llama3.1', prompt=prompt)
-                            ai_response = response['response']
-                         
+                        ai_response = inference_server_model(relevant_chunks, q)
                         # Display AI response in a nice format
                         st.markdown(f"""
                         <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); 
