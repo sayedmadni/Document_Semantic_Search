@@ -5,6 +5,7 @@ import glob
 import json
 from datetime import datetime
 from docling_core.types.doc import DocItemLabel
+from save_patents_mongodb import load_chunks_in_db
 
 def db_load():
     print(f"Hello from db_load")    
@@ -58,7 +59,9 @@ def db_load():
                     print(f"Text chunk: {chunk.text}")
             
             # Create chunks folder and save chunks
-            create_chunks_folder_and_save(text_chunks, non_text_chunks, filename)
+            #create_chunks_folder_and_save(text_chunks, non_text_chunks, filename)
+            #@sangeetha load the text_chunks and non_text_chunks in mongodb
+            load_chunks_in_db(text_chunks, non_text_chunks)
         
         except Exception as e:
             print(f"❌ Error processing document {i+1} ({filename}): {e}")
