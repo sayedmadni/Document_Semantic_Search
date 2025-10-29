@@ -1,15 +1,13 @@
 #Trying to use GPU
+from Inference_Server_Model import inference_server_model
 import torch
 import sys
 from pathlib import Path
 import streamlit as st
-from qdrant_client import QdrantClient
-from qdrant_client.models import PointStruct, VectorParams, Distance
-import uuid
-from check_toxicity import query_guadrails
-from check_basic_rules import query_guadrails
+import streamlit.components.v1 as components
+from query_guadrails import check_toxicity
+from query_guadrails import check_basic_rules
 from prompt_paraphase import paraphrase_sentence
-
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Using device: {DEVICE}")
@@ -29,127 +27,123 @@ def run_search_app():
                        background-size: 200% 200%; -webkit-background-clip: text; 
                        -webkit-text-fill-color: transparent; background-clip: text; 
                        font-size: 3rem; font-weight: 700; animation: titleShimmer 2s ease-in-out infinite;">
-                🔍 Patent Search AI
+                🔍 College Admissions Search
             </h1>
             <h3 style="margin: 0; color: #2C3E50; font-style: italic; font-size: 1.2rem;">
-                *Discover patents through AI-powered search*
+                *Discover college admission guidance through AI-powered search*
             </h3>
         </div>
     </div>
     """, unsafe_allow_html=True)
+    
+    # Sidebar for navigation
+    with st.sidebar:
+        st.markdown("## 🧭 Navigation")
+        page = st.selectbox("Choose a page:", ["🔍 Search", "🏗️ Architecture"])
+    
+    # Check which page to display
+    if page == "🏗️ Architecture":
+        # Display architecture diagram on main screen
+        st.markdown("## 🏗️ System Architecture")
+        st.markdown("**Interactive architecture diagram of the College Admissions Search system**")
         
-    # Search section with enhanced styling
-    st.markdown("## 🔍 AI-Powered Search")
-    st.markdown("**Describe what you're looking for and let AI find the perfect patent match!**")
-    
-    # Initialize session state for search query
-    if 'search_query' not in st.session_state:
-        st.session_state.search_query = ""
-    
-    # User input with better layout - spread horizontally
-    col1,col2 = st.columns([5,5])
-    
-    with col1:
-        q = st.text_input(
-            "🎯 Search Query", 
-            value=st.session_state.search_query,
-            placeholder="e.g., 'How can I chunk documents'",
-            help="Describe the patent info you're looking for in natural language",
-            key="search_input"
-        ) 
-
-    # Perform search when user enters a query
-    if q:
-        # Input validation and safety checks
-        # This is where Sangeetha will do the Ensamble Prompting / Query Guardrails item 11 on google doc
-
-        if not validate_input(q: str)-> bool:
-            return False
-            
-       
-
-       
+        # Read and display the architecture diagram
+        try:
+            with open("architecture_diagram.html", "r", encoding="utf-8") as f:
+                html_content = f.read()
+            st.components.v1.html(html_content, height=1000, scrolling=True)
+        except FileNotFoundError:
+            st.error("Architecture diagram file not found. Please ensure 'architecture_diagram.html' is in the project root.")
+        except Exception as e:
+            st.error(f"Error loading architecture diagram: {e}")
+    else:
+        # Search section with enhanced styling
+        st.markdown("## 🔍 AI-Powered Search")
+        st.markdown("**Describe what you're looking for and let AI find the perfect answer to your question!**")
         
-        with st.spinner("Searching..."):
-            try:
-                print(f'Query: {q}')
-                
-                # Use Qdrant search function
-                from search import search_qdrant
-                search_results = search_qdrant(q)
-                
-                # Display search results
-                #getting paraphrase questions for the input query
-                paraphrased_questions = paraphrase_sentence(q)
-                print("\nParaphrased Questions :: ")
-                
-                for i, final_output in enumerate(paraphrased_questions):
-                    print(f"{i+1}: {final_output}")
+        # Initialize session state for search query
+        if 'search_query' not in st.session_state:
+            st.session_state.search_query = ""
+        
+        # User input with better layout - spread horizontally
+        col1,col2 = st.columns([8,2])
+        
+        with col1:
+            q = st.text_area(
+                "🎯 Search Query", 
+                value=st.session_state.search_query,
+                placeholder="e.g., 'How can I prepare for the SAT?'",
+                help="Describe the college admission info you're looking for in natural language",
+                key="search_input",
+                height=100
+            ) 
 
-                #need to check if we can pass the paraphrased_questions to the embedder.encde call
-
-                query = embedder.encode(q, convert_to_tensor=True) # we encode our user input 
-
-                from sentence_transformers import util
-                search_results = util.semantic_search(query, embeddings, top_k = 3)
-                # Display results with enhanced styling
-                st.markdown("## 📋 Search Results")
-                
-                # Collect all relevant chunks for LLM processing
-                relevant_chunks = []
-                for index, result in enumerate(search_results):
-                    relevant_chunks.append(result)
-                    
-                    # Display individual results
-                    with st.expander(f"🔍 Result {index+1}", expanded=index==0):
-                        # Extract just the text part from the result
-                        result_text = result.split(": ", 1)[1] if ": " in result else result
-                        st.write(result_text)
-
-                 # Use Ollama LLM to provide a comprehensive answer
-                st.markdown("## 🤖 AI Analysis")
-                 
+        # Perform search when user enters a query
+        if q:
+            # Input validation and safety check       
+            with st.spinner("Searching..."):
                 try:
-                    from ollama import Client
-                    client = Client()
-                     
-                     # Prepare context for LLM
-                    context = "\n\n".join(relevant_chunks)
-
-                    prompt = f"""
-                    Based on the following patent document search results, provide a comprehensive answer to the user's query: "{q}"
+                    print(f'Query: {q}')
+                    #added to check the toxicity in the input query
+                    if not validate_input(q):
+                        st.markdown("Detected Toxicity in the input query")
+                        return False
                     
-                    Search Results:
-                    {context}
+                    #getting paraphrase questions for the input query
+                    #paraphrased_questions = paraphrase_sentence(q)
+                    #print("\nParaphrased Questions :: ")
+                    
+                    #for i, final_output in enumerate(paraphrased_questions):
+                    #    print(f"{i+1}: {final_output}")
+
+                    # Use Qdrant search function
+                    from search import search_qdrant
+                    search_results = search_qdrant(q)
+                    
+                    from search import search_qdrant_queries
+                    search_results_1 = search_qdrant_queries(paraphrased_questions)
+                    
+                    # Display search results
+                    #need to check if we can pass the paraphrased_questions to the embedder.encode call
+
+                    #from sentence_transformers import util
+                    #search_results = util.semantic_search(query, embeddings, top_k = 3)
+                    # Display results with enhanced styling
+                    st.markdown("## 📋 Search Results")
+                    
+                    # Collect all relevant chunks for LLM processing
+                    relevant_chunks = []
+                    for index, result in enumerate(search_results):
+                        relevant_chunks.append(result)
+                        
+                        # Display individual results
+                        with st.expander(f"🔍 Result {index+1}", expanded=index==0):
+                            # Extract just the text part from the result
+                            result_text = result.split(": ", 1)[1] if ": " in result else result
+                            st.write(result_text)
+
+                    # Use Ollama LLM to provide a comprehensive answer
+                    st.markdown("## 🤖 AI Analysis")
                      
-                    Please provide:
-                    1. A direct answer to the user's query based on the search results
-                    2. Key insights from the most relevant results
-                    3. How the search results relate to the user's question
-                     
-                    Answer: """
-                    print("line below promt") 
-                    with st.spinner("🤖 AI is analyzing the results..."):
-                        response = client.generate(model='llama3.1', prompt=prompt)
-                        ai_response = response['response']
-                     
-                     # Display AI response in a nice format
-                    st.markdown(f"""
-                    <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); 
-                                border-left: 4px solid #28a745; border-radius: 10px; 
-                                padding: 1rem; margin: 1rem 0; 
-                                box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                        <h4 style="margin-top: 0; color: #28a745;">🧠 AI Analysis</h4>
-                        <p style="margin-bottom: 0; line-height: 1.6;">{ai_response}</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                     
+                    try:
+                        ai_response = inference_server_model(relevant_chunks, q)
+                        # Display AI response in a nice format
+                        st.markdown(f"""
+                        <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); 
+                                    border-left: 4px solid #28a745; border-radius: 10px; 
+                                    padding: 1rem; margin: 1rem 0; 
+                                    box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                            <h4 style="margin-top: 0; color: #28a745;">🧠 AI Analysis</h4>
+                            <p style="margin-bottom: 0; line-height: 1.6;">{ai_response}</p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                         
+                    except Exception as e:
+                        st.error(f"❌ Error with AI analysis: {e}")
+                        st.info("💡 AI analysis unavailable, but you can still view the search results above.")
+                                             
                 except Exception as e:
-                    st.error(f"❌ Error with AI analysis: {e}")
-                    st.info("💡 AI analysis unavailable, but you can still view the search results above.")
-                                         
-            except Exception as e:
-                st.error(f"❌ Search error: {e}")
+                    st.error(f"❌ Search error: {e}")
 
 def validate_input(text: str):
     """Combine rule-based and AI-based guardrails."""

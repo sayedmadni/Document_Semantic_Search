@@ -17,6 +17,7 @@ dependencies = [
     "torch>=2.0.0",
     "streamlit>=1.28.0",
     "qdrant-client>=1.15.1",
+    "detoxify>=0.5.2",
 ]
 
 [build-system]
