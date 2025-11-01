@@ -12,8 +12,7 @@ from datetime import datetime
 # 'localhost' refers to your machine, which Docker maps to the container's port.
 MONGO_URI = "mongodb://admin:llm_raptor_123@localhost:27017/"
 
-def load_chunks_in_db(text_chunks, non_text_chunks):
-   
+def load_chunks_in_db(text_chunks, non_text_chunks):   
     try:
         """
         Create a folder to store chunks and save them as JSON files
@@ -37,8 +36,6 @@ def load_chunks_in_db(text_chunks, non_text_chunks):
         # Close the connection when done
         if 'client' in locals() and client:
             client.close()  
-
-
 
 #all the below code are for creating chunks from single pdf and loading in mongodb
 def read_from_mongodb_test():
@@ -86,53 +83,71 @@ def load_pdf_into_mongo():
 
 def load_pdf_mongodb_():
     try:
-        # ---------- Step 1: Read the file from an online URL ----------
-        source = "https://levelupcoalition.org/wp-content/uploads/2017/11/The-Case-for-Mathematics-Pathways-from-the-Launch-Years-in-High-School-through-Postsecondary-Education.pdf"  # Example file
+        from pathlib import Path
         
-
-        print("File downloaded successfully.")
-        converter = DocumentConverter()
-
-        result = converter.convert(source).document
-        # markdown_text = result.document.export_to_markdown()
-        chunker = HybridChunker()
-        chunks = list(chunker.chunk(dl_doc=result))
-        print(f"Total chunks: {len(chunks)}")
-        # for chunk in chunks:
-        #     print(chunk.text)
-
-        non_text_chunks = []
-        text_chunks = []
-        for chunk in chunks:                
-            if any(item.label != DocItemLabel.TEXT for item in chunk.meta.doc_items):
-                non_text_chunks.append(chunk)
-                #print(f"Non-text chunks: {chunk.text}")
-            else:
-                text_chunks.append(chunk)
-                #print(f"Text chunk: {chunk.text}")
+        # ---------- Step 1: Read files from education directory ----------
+        education_dir = "/home/anuragd/labshare/corpus/education"
+        education_path = Path(education_dir)
         
-        # Create chunks folder and save chunks
-        #create_chunks_folder_and_save(text_chunks, non_text_chunks, filename)
-            
-
-        # ---------- Step 3: Store chunks in MongoDB ----------
-        # Connect to MongoDB
+        # Get all PDF files in the directory (pick only first 25)
+        all_pdfs = list(education_path.glob("*.pdf"))
+        pdf_files = all_pdfs[:10]
+        print(f"Found {len(all_pdfs)} PDF files in {education_dir}, processing first 25")
+        
+        # Connect to MongoDB (do this once before the loop)
         client = MongoClient(MONGO_URI)
         db = client["doc_college_db"]
         collection = db["text_chunks"]
+        
+        # Loop through each PDF file
+        for pdf_file in pdf_files:
+            try:
+                source = str(pdf_file)
+                print(f"\nProcessing file: {pdf_file.name}")
+                
+                converter = DocumentConverter()
+                result = converter.convert(source).document
+                # markdown_text = result.document.export_to_markdown()
+                chunker = HybridChunker()
+                chunks = list(chunker.chunk(dl_doc=result))
+                print(f"Total chunks: {len(chunks)}")
+                # for chunk in chunks:
+                #     print(chunk.text)
 
-        print("inserting in mongodb")
+                non_text_chunks = []
+                text_chunks = []
+                for chunk in chunks:                
+                    if any(item.label != DocItemLabel.TEXT for item in chunk.meta.doc_items):
+                        non_text_chunks.append(chunk)
+                        #print(f"Non-text chunks: {chunk.text}")
+                    else:
+                        text_chunks.append(chunk)
+                        #print(f"Text chunk: {chunk.text}")
+                
+                # Create chunks folder and save chunks
+                #create_chunks_folder_and_save(text_chunks, non_text_chunks, filename)
+                    
 
-        # Insert chunks
-        for i, chunk in enumerate(text_chunks):
-            collection.insert_one({
-                "chunk_id": i + 1,
-                "text": chunk.text,
-                "source_url": source
-            })
-        print("========================Insertion suucesful ==========")
+                # ---------- Step 3: Store chunks in MongoDB ----------
+                print(f"Inserting {len(text_chunks)} chunks from {pdf_file.name} into MongoDB")
 
-        print(f"Successfully inserted {len(text_chunks)} chunks into MongoDB.")
+                # Insert chunks
+                for i, chunk in enumerate(text_chunks):
+                    collection.insert_one({
+                        "chunk_id": i + 1,
+                        "text": chunk.text,
+                        "source_url": source,
+                        "filename": pdf_file.name
+                    })
+                print(f"========================Insertion successful for {pdf_file.name} ==========")
+                print(f"Successfully inserted {len(text_chunks)} chunks from {pdf_file.name} into MongoDB.")
+            except Exception as file_error:
+                print(f"❌ Error processing file {pdf_file.name}: {file_error}")
+                print(f"⚠️ Skipping file {pdf_file.name} and continuing with next file...")
+                continue
+        
+        print(f"\n=== Completed processing all {len(pdf_files)} files ===")
+        
     except Exception as e:
         print(f"Exception occured while MongoDB operation: {e}")
     finally:
@@ -140,74 +155,108 @@ def load_pdf_mongodb_():
         if 'client' in locals() and client:
             client.close()
 
-
-
 def chunk_pdf():
     try:
-        # ---------- Step 1: Read the file from an online URL ----------
-        source = "https://levelupcoalition.org/wp-content/uploads/2017/11/The-Case-for-Mathematics-Pathways-from-the-Launch-Years-in-High-School-through-Postsecondary-Education.pdf"  # Example file
+        from pathlib import Path
         
-
-        print("File downloaded successfully.")
+        # ---------- Step 1: Read files from education directory ----------
+        education_dir = "/home/anuragd/labshare/corpus/education"
+        education_path = Path(education_dir)
+        
+        # Check if directory exists
+        if not education_path.exists():
+            raise FileNotFoundError(f"Directory not found: {education_dir}")
+        
+        # Get all PDF files in the directory (pick only first 25)
+        all_pdfs = list(education_path.glob("*.pdf"))
+        pdf_files = all_pdfs[:25]
+        print(f"Found {len(all_pdfs)} PDF files in {education_dir}, processing first 25")
+        
+        if not pdf_files:
+            raise ValueError(f"No PDF files found in {education_dir}")
+        
+        # Initialize converter and chunker
         converter = DocumentConverter()
-
-        result = converter.convert(source).document
-        # markdown_text = result.document.export_to_markdown()
         chunker = HybridChunker()
-        chunks = list(chunker.chunk(dl_doc=result))
-        print(f"Total chunks: {len(chunks)}")
-        # for chunk in chunks:
-        #     print(chunk.text)
-
-        non_text_chunks = []
-        text_chunks = []
-        for chunk in chunks:                
-            if any(item.label != DocItemLabel.TEXT for item in chunk.meta.doc_items):
-                non_text_chunks.append(chunk)
-                print(f"Non-text chunks: {chunk.text}")
-            else:
-                text_chunks.append(chunk)
-                print(f"Text chunk: {chunk.text}")
         
-        # Save text chunks
-        if text_chunks:
-            text_chunks_data = []
-            for i, chunk in enumerate(text_chunks):
-                chunk_data = {
-                    "chunk_id": f"text_{i+1}",
-                    "text": chunk.text,
-                    "metadata": {
-                        "chunk_type": "text",
-                        "created_at": datetime.now().isoformat(),
-                        "source_document": source
-                    }
-                }
-                text_chunks_data.append(chunk_data)
+        # Accumulate all chunks from all files
+        all_text_chunks_data = []
+        all_non_text_chunks_data = []
+        
+        # Loop through each PDF file
+        for pdf_file in pdf_files:
+            try:
+                source = str(pdf_file)
+                print(f"\nProcessing file: {pdf_file.name}")
 
-        # Save non-text chunks
-        if non_text_chunks:
-            non_text_chunks_data = []
-            for i, chunk in enumerate(non_text_chunks):
-                chunk_data = {
-                    "chunk_id": f"non_text_{i+1}",
-                    "text": chunk.text,
-                    "metadata": {
-                        "chunk_type": "non_text",
-                        "created_at": datetime.now().isoformat(),
-                        "source_document": source
-                    }
-                }
-            non_text_chunks_data.append(chunk_data)
-        # Load in chunks in mongodb
-        load_chunks_in_db(text_chunks_data, non_text_chunks_data)
+                result = converter.convert(source).document
+                # markdown_text = result.document.export_to_markdown()
+                chunks = list(chunker.chunk(dl_doc=result))
+                print(f"Total chunks: {len(chunks)}")
+                # for chunk in chunks:
+                #     print(chunk.text)
+
+                non_text_chunks = []
+                text_chunks = []
+                for chunk in chunks:                
+                    if any(item.label != DocItemLabel.TEXT for item in chunk.meta.doc_items):
+                        non_text_chunks.append(chunk)
+                        print(f"Non-text chunks: {chunk.text}")
+                    else:
+                        text_chunks.append(chunk)
+                        print(f"Text chunk: {chunk.text}")
+                
+                # Save text chunks
+                if text_chunks:
+                    for i, chunk in enumerate(text_chunks):
+                        chunk_data = {
+                            "chunk_id": f"text_{pdf_file.stem}_{i+1}",
+                            "text": chunk.text,
+                            "metadata": {
+                                "chunk_type": "text",
+                                "created_at": datetime.now().isoformat(),
+                                "source_document": source,
+                                "filename": pdf_file.name
+                            }
+                        }
+                        all_text_chunks_data.append(chunk_data)
+
+                # Save non-text chunks
+                if non_text_chunks:
+                    for i, chunk in enumerate(non_text_chunks):
+                        chunk_data = {
+                            "chunk_id": f"non_text_{pdf_file.stem}_{i+1}",
+                            "text": chunk.text,
+                            "metadata": {
+                                "chunk_type": "non_text",
+                                "created_at": datetime.now().isoformat(),
+                                "source_document": source,
+                                "filename": pdf_file.name
+                            }
+                        }
+                        all_non_text_chunks_data.append(chunk_data)
+                
+                print(f"Processed {len(text_chunks)} text chunks and {len(non_text_chunks)} non-text chunks from {pdf_file.name}")
+            except Exception as file_error:
+                print(f"❌ Error processing file {pdf_file.name}: {file_error}")
+                print(f"⚠️ Skipping file {pdf_file.name} and continuing with next file...")
+                continue
+        
+        # Load all chunks in mongodb
+        if all_text_chunks_data or all_non_text_chunks_data:
+            print(f"\nPreparing to insert into MongoDB...")
+            print(f"Total text chunks to insert: {len(all_text_chunks_data)}")
+            print(f"Total non-text chunks to insert: {len(all_non_text_chunks_data)}")
+            load_chunks_in_db(all_text_chunks_data, all_non_text_chunks_data)
+            print(f"\n=== Completed processing all {len(pdf_files)} files ===")
+            print(f"Total text chunks: {len(all_text_chunks_data)}")
+            print(f"Total non-text chunks: {len(all_non_text_chunks_data)}")
+        else:
+            print("No chunks to insert - both text and non-text chunks lists are empty")
             
 
-       
     except Exception as e:
         print(f"Exception occured while MongoDB operation: {e}")
-   
-
-
 
 
 if __name__ == "__main__":

@@ -13,7 +13,7 @@
             min-height: 100vh;
         }
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
             background: white;
             border-radius: 15px;
@@ -23,25 +23,36 @@
         h1 {
             text-align: center;
             color: #2c3e50;
-            margin-bottom: 30px;
+            margin-bottom: 10px;
             font-size: 2.5rem;
+        }
+        .subtitle {
+            text-align: center;
+            color: #6c757d;
+            margin-bottom: 30px;
+            font-style: italic;
         }
         .architecture-flow {
             margin: 20px 0;
         }
         .flow-step {
-            background: #f8f9fa;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
             border: 2px solid #dee2e6;
             border-radius: 15px;
             padding: 20px;
             margin: 20px 0;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+        .flow-step:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
         }
         .flow-step h3 {
             margin-top: 0;
             color: #495057;
             font-size: 1.4rem;
-            border-bottom: 2px solid #007bff;
+            border-bottom: 3px solid #007bff;
             padding-bottom: 10px;
         }
         .step-content p {
@@ -49,11 +60,14 @@
             line-height: 1.6;
             color: #6c757d;
         }
+        .step-content strong {
+            color: #495057;
+        }
         .flow-arrow {
             text-align: center;
-            font-size: 2rem;
+            font-size: 2.5rem;
             color: #007bff;
-            margin: 10px 0;
+            margin: 15px 0;
             font-weight: bold;
         }
         .description {
@@ -87,99 +101,232 @@
         .component li {
             margin: 5px 0;
         }
+        .pipeline-section {
+            background: #e3f2fd;
+            border-left: 5px solid #2196F3;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        .pipeline-section h4 {
+            margin-top: 0;
+            color: #1976D2;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>🔍 College Admissions Search - System Architecture</h1>
+        <p class="subtitle">Complete RAG Pipeline: Document Processing → Recontextualization → Embedding → Search</p>
         
         <div class="architecture-flow">
+            <!-- DATA INGESTION PHASE -->
+            <div class="pipeline-section">
+                <h4>📥 PHASE 1: DATA INGESTION & INITIAL PROCESSING</h4>
+            </div>
+
+            <div class="flow-step">
+                <h3>📚 Document Source</h3>
+                <div class="step-content">
+                    <p><strong>Education Corpus</strong> - PDF documents from `/home/anuragd/labshare/corpus/education`</p>
+                    <p><strong>Batch Processing</strong> - Processes first 10-25 PDF files (configurable)</p>
+                    <p><strong>Error Handling</strong> - Skips invalid/corrupted files automatically</p>
+                    <p><strong>File Types</strong> - PDF format educational documents</p>
+                </div>
+            </div>
+
+            <div class="flow-arrow">↓</div>
+
+            <div class="flow-step">
+                <h3>📄 Document Conversion & Initial Chunking</h3>
+                <div class="step-content">
+                    <p><strong>Module</strong> - save_patents_mongodb.py (chunk_pdf function)</p>
+                    <p><strong>Converter</strong> - Docling DocumentConverter (PDF → Document structure)</p>
+                    <p><strong>Chunker</strong> - Docling HybridChunker (hybrid text/structure chunking)</p>
+                    <p><strong>Chunk Types</strong> - Separates text chunks from non-text chunks (tables, images)</p>
+                    <p><strong>Metadata</strong> - Includes filename, source document, chunk type, timestamp</p>
+                </div>
+            </div>
+
+            <div class="flow-arrow">↓</div>
+
+            <div class="flow-step">
+                <h3>🗄️ MongoDB Storage (Initial Chunks)</h3>
+                <div class="step-content">
+                    <p><strong>Database</strong> - doc_college_db</p>
+                    <p><strong>Collection</strong> - text_chunks</p>
+                    <p><strong>Storage</strong> - Original document chunks with metadata</p>
+                    <p><strong>Format</strong> - JSON documents with chunk_id, text, source_url, filename</p>
+                </div>
+            </div>
+
+            <!-- RECONTEXTUALIZATION PHASE -->
+            <div class="pipeline-section">
+                <h4>🔄 PHASE 2: RECONTEXTUALIZATION PIPELINE</h4>
+            </div>
+
+            <div class="flow-arrow">↓</div>
+
+            <div class="flow-step">
+                <h3>🔍 Semantic Chunking</h3>
+                <div class="step-content">
+                    <p><strong>Module</strong> - recontext_chunking.py (create_semantic_chunks)</p>
+                    <p><strong>Library</strong> - Chonkie SemanticChunker</p>
+                    <p><strong>Input</strong> - Parent text chunks from MongoDB text_chunks collection</p>
+                    <p><strong>Output</strong> - Meaning-coherent semantic spans (not fixed-size chunks)</p>
+                    <p><strong>Artifacts</strong> - Semantic chunks saved to semantic_chunks.jsonl</p>
+                </div>
+            </div>
+
+            <div class="flow-arrow">↓</div>
+
+            <div class="flow-step">
+                <h3>🧠 Contextual Chunking (LLM Enhancement)</h3>
+                <div class="step-content">
+                    <p><strong>Module</strong> - recontext_chunking.py (create_contextual_chunks)</p>
+                    <p><strong>LLM Service</strong> - Ollama (OpenAI-compatible endpoint)</p>
+                    <p><strong>Model</strong> - gpt-oss:20b</p>
+                    <p><strong>Process</strong> - Adds minimal parent context to make chunks self-standing</p>
+                    <p><strong>Prompt Strategy</strong> - Enriches semantic chunks with necessary context from parent</p>
+                    <p><strong>Output</strong> - Recontextualized chunks saved to contextual_chunks.jsonl</p>
+                </div>
+            </div>
+
+            <div class="flow-arrow">↓</div>
+
+            <div class="flow-step">
+                <h3>💾 MongoDB Storage (Recontextualized Chunks)</h3>
+                <div class="step-content">
+                    <p><strong>Module</strong> - recontext_chunking.py (load_recontextualized_chunks_in_db)</p>
+                    <p><strong>Database</strong> - doc_college_db</p>
+                    <p><strong>Collection</strong> - recontextualized_chunks</p>
+                    <p><strong>Content</strong> - Contextual chunk text, semantic chunk ID, parent ID, metadata</p>
+                </div>
+            </div>
+
+            <!-- EMBEDDING PHASE -->
+            <div class="pipeline-section">
+                <h4>🔢 PHASE 3: EMBEDDING & VECTOR STORAGE</h4>
+            </div>
+
+            <div class="flow-arrow">↓</div>
+
+            <div class="flow-step">
+                <h3>🔢 Embedding Generation</h3>
+                <div class="step-content">
+                    <p><strong>Module</strong> - Embedding_Storing.py (embed_chunks)</p>
+                    <p><strong>Source</strong> - Loads from MongoDB recontextualized_chunks collection</p>
+                    <p><strong>Model</strong> - SentenceTransformer (multi-qa-mpnet-base-cos-v1)</p>
+                    <p><strong>Vector Size</strong> - 768-dimensional embeddings</p>
+                    <p><strong>Device</strong> - Automatic CUDA/CPU detection (GPU-accelerated if available)</p>
+                </div>
+            </div>
+
+            <div class="flow-arrow">↓</div>
+
+            <div class="flow-step">
+                <h3>🗄️ Qdrant Vector Database</h3>
+                <div class="step-content">
+                    <p><strong>Module</strong> - Embedding_Storing.py (upsert_chunks_to_vecdb)</p>
+                    <p><strong>Service</strong> - Qdrant Vector DB (localhost:6333)</p>
+                    <p><strong>Collection</strong> - college_pathway_search</p>
+                    <p><strong>Distance Metric</strong> - Cosine similarity</p>
+                    <p><strong>Storage Format</strong> - Vector embeddings with payload (text, type, chunk_idx)</p>
+                    <p><strong>Batch Processing</strong> - Upserts in batches of 50 points for efficiency</p>
+                </div>
+            </div>
+
+            <!-- SEARCH & RETRIEVAL PHASE -->
+            <div class="pipeline-section">
+                <h4>🔎 PHASE 4: SEARCH & RETRIEVAL</h4>
+            </div>
+
+            <div class="flow-arrow">↓</div>
+
             <div class="flow-step">
                 <h3>🖥️ User Interface Layer</h3>
                 <div class="step-content">
-                    <p><strong>Streamlit Web App</strong> - Interactive web interface for college admission queries</p>
-                    <p><strong>Text Area Input</strong> - Multi-line query input</p>
-                    <p><strong>Search Results Display</strong> - Expandable results with AI analysis</p>
+                    <p><strong>Framework</strong> - Streamlit Web App (Semantic_Search.py)</p>
+                    <p><strong>Interface</strong> - Interactive web interface for college admission queries</p>
+                    <p><strong>Features</strong> - Text area input, expandable results, AI analysis display</p>
+                    <p><strong>Navigation</strong> - Search page and Architecture diagram viewer</p>
                 </div>
             </div>
 
             <div class="flow-arrow">↓</div>
 
             <div class="flow-step">
-                <h3>🛡️ Query Processing Layer</h3>
+                <h3>🛡️ Query Processing & Validation</h3>
                 <div class="step-content">
+                    <p><strong>Module</strong> - Semantic_Search.py (validate_input)</p>
                     <p><strong>Query Guardrails</strong> - Input validation and safety checks</p>
-                    <p><strong>Prompt Paraphrase</strong> - Query enhancement and optimization</p>
-                    <p><strong>Input Validation</strong> - Basic rules & toxicity detection</p>
-                    <p><strong>Toxicity Detection</strong> - Content moderation (optional detoxify)</p>
-                    <p><strong>Basic Rules</strong> - Length limits and profanity filtering</p>
+                    <p><strong>Toxicity Detection</strong> - Content moderation using detoxify (optional)</p>
+                    <p><strong>Basic Rules</strong> - Length limits, profanity filtering, input sanitization</p>
+                    <p><strong>Prompt Paraphrase</strong> - Query enhancement capability (currently commented)</p>
                 </div>
             </div>
 
             <div class="flow-arrow">↓</div>
 
             <div class="flow-step">
-                <h3>🔍 Search Engine Layer</h3>
+                <h3>🔍 Vector Search</h3>
                 <div class="step-content">
-                    <p><strong>Qdrant Search</strong> - Vector similarity search (search.py)</p>
+                    <p><strong>Module</strong> - Retreiving_Data_Qdrant.py (search_qdrant)</p>
                     <p><strong>Query Embedding</strong> - SentenceTransformer (multi-qa-mpnet-base-cos-v1)</p>
-                    <p><strong>Vector Similarity</strong> - Cosine distance scoring</p>
+                    <p><strong>Vector Similarity</strong> - Cosine distance scoring in Qdrant</p>
                     <p><strong>Top-K Results</strong> - Returns top 3 most relevant chunks</p>
+                    <p><strong>Result Format</strong> - Chunk text with metadata (source, chunk index)</p>
                 </div>
             </div>
 
             <div class="flow-arrow">↓</div>
 
             <div class="flow-step">
-                <h3>🗄️ Vector Database Layer</h3>
+                <h3>🤖 AI Analysis & Response Generation</h3>
                 <div class="step-content">
-                    <p><strong>Qdrant Vector DB</strong> - Local vector database (localhost:6333)</p>
-                    <p><strong>Collection</strong> - patent_semantic_search collection</p>
-                    <p><strong>Document Embeddings</strong> - 384-dimensional vectors</p>
-                </div>
-            </div>
-
-            <div class="flow-arrow">↓</div>
-
-            <div class="flow-step">
-                <h3>🤖 AI Analysis Layer</h3>
-                <div class="step-content">
-                    <p><strong>Ollama LLM</strong> - Local llama3.1 model</p>
+                    <p><strong>Module</strong> - Inference_Server_Model.py</p>
+                    <p><strong>LLM Service</strong> - Ollama inference server</p>
+                    <p><strong>Model</strong> - llama3.1 (local model)</p>
                     <p><strong>Context Assembly</strong> - Search results + user query</p>
-                    <p><strong>Comprehensive Response</strong> - AI-generated answers</p>
+                    <p><strong>Output</strong> - Comprehensive AI-generated answers with citations</p>
                 </div>
             </div>
 
-            <div class="flow-arrow">↓</div>
-
-            <div class="flow-step">
-                <h3>📊 Data Processing Layer</h3>
-                <div class="step-content">
-                    <p><strong>Document Loader</strong> - Load_Documents.py</p>
-                    <p><strong>Semantic Chunking</strong> - Chonkie library with configurable parameters</p>
-                    <p><strong>PDF to Markdown</strong> - Docling converter</p>
-                </div>
+            <!-- TECHNICAL SPECIFICATIONS -->
+            <div class="pipeline-section" style="margin-top: 40px;">
+                <h4>⚙️ TECHNICAL SPECIFICATIONS</h4>
             </div>
 
-            <div class="flow-arrow">↓</div>
-
-            <div class="flow-step">
-                <h3>📚 Data Sources</h3>
-                <div class="step-content">
-                    <p><strong>ArXiv Papers</strong> - 6 research papers (2408.09869-74)</p>
-                    <p><strong>PDF Format</strong> - Academic research documents</p>
-                    <p><strong>Batch Processing</strong> - Sequential document processing</p>
+            <div class="component-list">
+                <div class="component">
+                    <h3>📦 Key Libraries</h3>
+                    <ul>
+                        <li>Docling - PDF conversion</li>
+                        <li>Chonkie - Semantic chunking</li>
+                        <li>SentenceTransformers - Embeddings</li>
+                        <li>Qdrant - Vector database</li>
+                        <li>PyMongo - MongoDB operations</li>
+                        <li>Streamlit - Web interface</li>
+                        <li>Ollama - LLM inference</li>
+                    </ul>
                 </div>
-            </div>
-
-            <div class="flow-arrow">↓</div>
-
-            <div class="flow-step">
-                <h3>⚡ GPU Acceleration</h3>
-                <div class="step-content">
-                    <p><strong>CUDA Support</strong> - Automatic GPU detection</p>
-                    <p><strong>PyTorch Integration</strong> - GPU tensor operations</p>
-                    <p><strong>Performance Boost</strong> - Faster embedding generation</p>
+                <div class="component">
+                    <h3>🗄️ Data Stores</h3>
+                    <ul>
+                        <li>MongoDB - doc_college_db</li>
+                        <li>Collection: text_chunks</li>
+                        <li>Collection: recontextualized_chunks</li>
+                        <li>Qdrant - college_pathway_search</li>
+                    </ul>
+                </div>
+                <div class="component">
+                    <h3>⚡ Performance</h3>
+                    <ul>
+                        <li>GPU Acceleration - CUDA support</li>
+                        <li>Batch Processing - 50 points per batch</li>
+                        <li>Error Recovery - Skips invalid files</li>
+                        <li>Parallel Processing - Optimized I/O</li>
+                    </ul>
                 </div>
             </div>
         </div>

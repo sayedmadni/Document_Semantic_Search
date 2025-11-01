@@ -96,12 +96,12 @@ def run_search_app():
                     #for i, final_output in enumerate(paraphrased_questions):
                     #    print(f"{i+1}: {final_output}")
 
-                    # Use Qdrant search function
-                    from search import search_qdrant
+                    # Use Qdrant search function - import from Retreiving_Data_Qdrant
+                    from Retreiving_Data_Qdrant import search_qdrant
+                    
                     search_results = search_qdrant(q)
                     
-                    from search import search_qdrant_queries
-                    search_results_1 = search_qdrant_queries(paraphrased_questions)
+                    #search_results_1 = retreiving_module.search_qdrant_queries(paraphrased_questions)
                     
                     # Display search results
                     #need to check if we can pass the paraphrased_questions to the embedder.encode call
