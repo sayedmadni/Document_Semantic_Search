@@ -25,8 +25,13 @@ from openai import OpenAI
 
 # --- Mongo ---
 MONGO_URI = "mongodb://admin:llm_raptor_123@localhost:27017/"
-DB_NAME = "doc_college_pathway"
-SRC_COLLECTION = "college_pathway"  # upstream loaded here
+
+# docker exec -it  llm-raptor-mongodb mongosh -u admin -p llm_raptor_123 --authenticationDatabase admin
+# use doc_collelsge_db use this command to switch to the database
+# db.[collection_name].find() Use this commant to view all data in the collection 
+
+DB_NAME = "doc_college_db"
+SRC_COLLECTION = "text_chunks"  # upstream loaded here
 
 # --- File outputs ---
 BOOTCAMP_ROOT_DIR = Path("/home/anuragd/labshare/")  # hardcoded absolute path
@@ -69,9 +74,11 @@ def extract_parent_chunks_from_mongo() -> List[Dict[str, Any]]:
     parent_chunks = []
     try:
         coll = client[DB_NAME][SRC_COLLECTION]
-        cursor = coll.find({"type": "text"})
+        cursor = coll.find()
+        # print(f"cursor: {cursor}")
         for i, doc in enumerate(cursor):
-            txt = (doc.get("content") or "").strip()
+            # print(f"doc: {doc}")
+            txt = (doc.get("text") or "").strip()
             if not txt:
                 continue
             parent_chunks.append({"id": i, "text": txt})
@@ -242,7 +249,32 @@ def create_contextual_chunks(semantic_chunks: List[Dict[str, Any]]) -> List[Dict
             total_contextual += 1
 
     print(f"[OK] Total contextual chunks created: {total_contextual}")
+    print(type(contextual_chunks))
     return contextual_chunks
+
+
+def load_recontextualized_chunks_in_db(contextual_chunks):
+   
+    try:
+        
+        DB_NAME = "doc_college_db"
+        SRC_COLLECTION = "recontextualized_chunks"  # upstream loaded here
+        # Connect to MongoDB
+        client = MongoClient(MONGO_URI)
+        db = client[DB_NAME]
+        collection = db[SRC_COLLECTION]
+
+        print("inserting recontextualized chunks in mongodb")
+        collection.insert_many(contextual_chunks)
+       
+        print("========================Insertion suucesful ==========")
+        print(f"Successfully inserted {len(contextual_chunks)} chunks into MongoDB.")
+    except Exception as e:
+        print(f"Exception occured while MongoDB operation: {e}")
+    finally:
+        # Close the connection when done
+        if 'client' in locals() and client:
+            client.close()  
 
 
 # ============================================================
@@ -267,6 +299,9 @@ def main():
 
     # Step 3: Contextual chunking
     contextual = create_contextual_chunks(semantic)
+
+    # Step 4: Load recontextualized chunks in MongoDB
+    load_recontextualized_chunks_in_db(contextual)
 
     # Final confirmation
     print("=== Pipeline complete ===")

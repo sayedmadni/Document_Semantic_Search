@@ -1,3 +1,6 @@
+
+
+
 def embed_chunks(chunks):
     from sentence_transformers import SentenceTransformer
 
@@ -102,3 +105,7 @@ def upsert_chunks_to_vecdb(embeddings, chunks):
     print("Total vetors stores in Qdrant", len(points))
 
     return (len(points))
+
+    if __name__ == "__main__":
+        results=embed_chunks()
+        print(results)
